@@ -1,0 +1,8 @@
+prefix=/home/chionn/fyp_ws/devel
+
+Name: moveit_python_tools
+Description: Description of moveit_python_tools
+Version: 0.0.0
+Cflags: 
+Libs: -L${prefix}/lib 
+Requires: 
