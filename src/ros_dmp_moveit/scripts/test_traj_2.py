@@ -10,6 +10,7 @@ import rospy
 import moveit_commander
 import moveit_msgs.msg
 import geometry_msgs.msg
+from geometry_msgs.msg import Pose, PoseStamped
 
 import pandas as pd
 
@@ -58,8 +59,6 @@ def all_close(goal, actual, tolerance):
 
 
 class initiate_robot(object):
-    """MoveGroupPythonInterfaceTutorial"""
-
     def __init__(self):
         super(initiate_robot, self).__init__()
         moveit_commander.roscpp_initialize(sys.argv)
@@ -93,66 +92,38 @@ class initiate_robot(object):
         self.eef_link = eef_link
         self.group_names = group_names
 
-    def go_to_joint_state(self):
-        global joint_goal
+    def plan_cartesian_path(self):
         move_group = self.move_group
-        # get joint angle from traj file
-        df = pd.read_csv('/home/chionn/fyp_ws/src/ros_dmp_moveit/pydmps-test/examples/traj_files/draw_2.traj',header=None)
-        df = df.loc[0:1249,0:5]
+        df = pd.read_csv('/home/chionn/fyp_ws/draw_2_pose.csv',header=None)
+        #df = df.iloc[0:3,0:7]
+        pose_list = []
+        for rows in range(df.shape[0]): 
+            pose_temp = Pose()
+            pose_temp.position.x,pose_temp.position.y,pose_temp.position.z = df.iloc[rows,0],df.iloc[rows,1],df.iloc[rows,2]
+            pose_temp.orientation.x,pose_temp.orientation.y,pose_temp.orientation.z,pose_temp.orientation.w = df.iloc[rows,3],df.iloc[rows,4],df.iloc[rows,5],df.iloc[rows,6]
+            pose_list.append(pose_temp)
 
-        joint_goal = move_group.get_current_joint_values()
-        joint_goal[0],joint_goal[1],joint_goal[2],joint_goal[3],joint_goal[4],joint_goal[5] = df.iloc[0]
+        # We want the Cartesian path to be interpolated at a resolution of 1 cm
+        # which is why we will specify 0.01 as the eef_step in Cartesian
+        # translation.  We will disable the jump threshold by setting it to 0.0,
+        # ignoring the check for infeasible jumps in joint space, which is sufficient
+        # for this tutorial.
+        (plan, fraction) = move_group.compute_cartesian_path(
+            pose_list, 0.01, 0.0  # waypoints to follow  # eef_step
+        )  # jump_threshold
+        # Note: We are just planning, not asking move_group to actually move the robot yet:
+        return plan, fraction
 
-        move_group.go(joint_goal, wait=True)
-        print('read final pos')
-        for i in range(0,len(df),5):
-            print('qwe')
-            joint_goal[0],joint_goal[1],joint_goal[2],joint_goal[3],joint_goal[4],joint_goal[5] = df.iloc[i]
-            move_group.go(joint_goal, wait=True)
-
-        # joint_goal[0],joint_goal[1],joint_goal[2],joint_goal[3],joint_goal[4],joint_goal[5] = 0.551098,0.010168,-1.136722,-0.026116,0.862260,0.420633
-        # move_group.go(joint_goal, wait=True)
-        # joint_goal[0],joint_goal[1],joint_goal[2],joint_goal[3],joint_goal[4],joint_goal[5] = -0.416215,-1.028408,-0.340022,-0.487066,1.032515,0.420468
-        # move_group.go(joint_goal, wait=True)
-
-        move_group.stop()
-
-        ## END_SUB_TUTORIAL
-
-        # For testing:
-        current_joints = move_group.get_current_joint_values()
-        return all_close(joint_goal, current_joints, 0.01)
-
-    def go_to_pose_goal(self,px,py,pz):
+    def execute_plan(self, plan):
         move_group = self.move_group
-
-        pose_goal = geometry_msgs.msg.Pose()
-        pose_goal.orientation.x = -0.9388040580269565
-        pose_goal.orientation.y = -0.23971834990313626
-        pose_goal.orientation.z = -0.23966499133622135
-        pose_goal.orientation.w = 0.06117798034951591
-        pose_goal.position.x = px
-        pose_goal.position.y = py
-        pose_goal.position.z = pz
-
-        move_group.set_pose_target(pose_goal)
-        success = move_group.go(wait=True)
-        move_group.stop()
-        move_group.clear_pose_targets()
-
-        # For testing:
-        # Note that since this section of code will not be included in the tutorials
-        # we use the class variable rather than the copied state variable
-        current_pose = self.move_group.get_current_pose().pose
-        return all_close(pose_goal, current_pose, 0.01)  
+        move_group.execute(plan, wait=True)
 
 def main():
     try:
         # Setting up MoveitCommander
         myrobot = initiate_robot()
-        input("============ Press `Enter` to execute a movement using a pose goal ...")
-        # myrobot.go_to_pose_goal(0.2969906358809285,0.16222601608747705,0.07924469529761477)  
-        myrobot.go_to_joint_state()
+        cartesian_plan, fraction = myrobot.plan_cartesian_path()
+        myrobot.execute_plan(cartesian_plan)
 
     except rospy.ROSInterruptException:
         return

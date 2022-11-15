@@ -182,8 +182,8 @@ class MoveGroupPythonInterfaceTutorial(object):
         )  # jump_threshold
         print('WAYPOINTS')
         print(waypoints)
-        print('PLAN')
-        print(plan)
+        #print('PLAN')
+        #print(plan)
         # Note: We are just planning, not asking move_group to actually move the robot yet:
         return plan, fraction
 
